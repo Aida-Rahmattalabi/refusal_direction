@@ -60,6 +60,31 @@ def filter_data(cfg, model_base, harmful_train, harmless_train, harmful_val, har
     
     return harmful_train, harmless_train, harmful_val, harmless_val
 
+def load_example_harmful_responses(instructions):
+    """
+    Load example harmful responses from the curated test dataset and align them
+    to the given instruction list. Instructions not found in the example set are
+    skipped; the returned list is a subset of (instruction, response) pairs for
+    which an example response exists.
+    """
+    example_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        "..", "..", "dataset", "example_harmful_responses.json"
+    )
+    with open(example_path, "r") as f:
+        examples = json.load(f)
+
+    response_map = {e["instruction"]: e["response"] for e in examples}
+
+    matched_instructions, matched_responses = [], []
+    for inst in instructions:
+        if inst in response_map:
+            matched_instructions.append(inst)
+            matched_responses.append(response_map[inst])
+
+    return matched_instructions, matched_responses
+
+
 def generate_and_save_candidate_directions(cfg, model_base, harmful_train, harmless_train):
     """Generate and save candidate directions using the method specified in cfg.direction_method."""
     artifact_dir = os.path.join(cfg.artifact_path(), 'generate_directions')
@@ -67,9 +92,15 @@ def generate_and_save_candidate_directions(cfg, model_base, harmful_train, harml
         os.makedirs(artifact_dir)
 
     if cfg.direction_method == "causal":
+        instructions, harmful_responses = load_example_harmful_responses(harmful_train)
+        assert len(instructions) > 0, (
+            "No instructions from harmful_train matched the example response dataset. "
+            "Populate dataset/example_harmful_responses.json with matching entries."
+        )
         mean_diffs = generate_directions_causal(
             model_base,
-            harmful_train,
+            instructions,
+            harmful_responses,
             artifact_dir=artifact_dir,
         )
     else:
