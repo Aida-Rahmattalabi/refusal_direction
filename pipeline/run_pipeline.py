@@ -11,6 +11,7 @@ from pipeline.model_utils.model_factory import construct_model_base
 from pipeline.utils.hook_utils import get_activation_addition_input_pre_hook, get_all_direction_ablation_hooks
 
 from pipeline.submodules.generate_directions import generate_directions
+from pipeline.submodules.generate_directions_causal import generate_directions_causal
 from pipeline.submodules.select_direction import select_direction, get_refusal_scores
 from pipeline.submodules.evaluate_jailbreak import evaluate_jailbreak
 from pipeline.submodules.evaluate_loss import evaluate_loss
@@ -60,17 +61,26 @@ def filter_data(cfg, model_base, harmful_train, harmless_train, harmful_val, har
     return harmful_train, harmless_train, harmful_val, harmless_val
 
 def generate_and_save_candidate_directions(cfg, model_base, harmful_train, harmless_train):
-    """Generate and save candidate directions."""
-    if not os.path.exists(os.path.join(cfg.artifact_path(), 'generate_directions')):
-        os.makedirs(os.path.join(cfg.artifact_path(), 'generate_directions'))
+    """Generate and save candidate directions using the method specified in cfg.direction_method."""
+    artifact_dir = os.path.join(cfg.artifact_path(), 'generate_directions')
+    if not os.path.exists(artifact_dir):
+        os.makedirs(artifact_dir)
 
-    mean_diffs = generate_directions(
-        model_base,
-        harmful_train,
-        harmless_train,
-        artifact_dir=os.path.join(cfg.artifact_path(), "generate_directions"))
+    if cfg.direction_method == "causal":
+        mean_diffs = generate_directions_causal(
+            model_base,
+            harmful_train,
+            artifact_dir=artifact_dir,
+        )
+    else:
+        mean_diffs = generate_directions(
+            model_base,
+            harmful_train,
+            harmless_train,
+            artifact_dir=artifact_dir,
+        )
 
-    torch.save(mean_diffs, os.path.join(cfg.artifact_path(), 'generate_directions/mean_diffs.pt'))
+    torch.save(mean_diffs, os.path.join(artifact_dir, 'mean_diffs.pt'))
 
     return mean_diffs
 
